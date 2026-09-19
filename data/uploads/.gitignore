@@ -1,0 +1,4 @@
+# Uploaded field documents are local-disk storage for the MVP (docs/API.md).
+# Never commit actual uploads.
+*
+!.gitignore
