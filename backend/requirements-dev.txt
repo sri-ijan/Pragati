@@ -1,0 +1,5 @@
+# SetuAI backend — test-only dependencies. Not required to run the app.
+# Install with: pip install -r requirements.txt -r requirements-dev.txt
+
+pytest==8.3.3
+httpx==0.28.1

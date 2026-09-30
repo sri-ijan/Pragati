@@ -1,10 +1,10 @@
-# SetuAI backend — scaffolding + Slice 1 (schedule ingestion) dependencies.
-# Further feature-specific deps (an LLM SDK, embeddings client, pgvector) are
-# added slice by slice, not pre-installed speculatively.
+# SetuAI backend — scaffolding + Slice 1 (schedule ingestion) + Slice 2
+# (document intake) + Slice 3 (LLM extraction: Groq primary, Gemini fallback)
+# dependencies. Test-only deps (pytest, httpx) live in requirements-dev.txt.
 
 fastapi==0.115.0
 uvicorn[standard]==0.30.6
-pydantic==2.9.2
+pydantic==2.12.5
 pydantic-settings==2.5.2
 sqlalchemy==2.0.35
 psycopg2-binary==2.9.9
@@ -12,3 +12,7 @@ python-dotenv==1.0.1
 python-multipart==0.0.9
 pandas==2.2.3
 openpyxl==3.1.5
+groq==1.7.0
+google-genai==2.24.0
+pgvector==0.5.0
+pypdf==6.19.0

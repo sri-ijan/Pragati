@@ -62,6 +62,7 @@ export interface MatchRecord {
   metadata_score: number; // 0..1
   temporal_score: number; // 0..1
   llm_score: number; // 0..1
+  terminology_score: number; // 0..1
   final_confidence: number; // 0..1, weighted composite — see computeConfidence below
   decision: MatchDecision;
   reviewer: string | null;

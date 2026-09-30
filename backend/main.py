@@ -16,7 +16,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from api.documents import router as documents_router
+from api.extraction import router as extraction_router
 from api.health import router as health_router
+from api.matching import router as matching_router
 from api.projects import router as projects_router
 from api.schedule import router as schedule_router
 from config.database import engine
@@ -26,14 +28,20 @@ from models.orm import Base
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Creates any tables that don't exist yet (schedule_activities, projects).
-    # MVP uses create_all instead of migrations — see docs/DECISIONS.md.
-    # Never blocks/crashes startup if Postgres isn't reachable yet — matches
-    # the lazy-connection scaffolding decision from the earlier scaffolding pass.
+    # Creates the pgvector extension (Slice 4 — activity_embeddings) and any
+    # tables that don't exist yet. MVP uses create_all instead of migrations —
+    # see docs/DECISIONS.md. Never blocks/crashes startup if Postgres isn't
+    # reachable yet — matches the lazy-connection scaffolding decision from
+    # the earlier scaffolding pass.
     try:
+        from sqlalchemy import text
+
+        with engine.connect() as conn:
+            conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+            conn.commit()
         Base.metadata.create_all(bind=engine)
     except Exception as exc:  # noqa: BLE001
-        print(f"[startup] Could not create tables (DB unreachable?): {exc}")
+        print(f"[startup] Could not create extension/tables (DB unreachable?): {exc}")
     yield
 
 
@@ -75,3 +83,5 @@ app.include_router(health_router)
 app.include_router(projects_router)
 app.include_router(schedule_router)
 app.include_router(documents_router)
+app.include_router(extraction_router)
+app.include_router(matching_router)

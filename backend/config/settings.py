@@ -38,5 +38,17 @@ class Settings(BaseSettings):
     # Relative to repo root; not committed (see .gitignore).
     uploads_dir: Path = REPO_ROOT / "data" / "uploads"
 
+    # LLM provider (Slice 3 — extraction). Groq is the primary provider,
+    # Gemini is the automatic fallback (see services/llm_provider.py). No key
+    # is hardcoded or defaulted; if neither is set, extraction fails clearly
+    # (503) rather than faking output.
+    groq_api_key: str | None = None
+    groq_model: str = "openai/gpt-oss-20b"  # supports Groq's strict structured-output mode
+    gemini_api_key: str | None = None
+    gemini_model: str = "gemini-2.5-flash"
+    # Embeddings (Slice 4 — semantic matching) always use Gemini specifically;
+    # Groq has no embeddings API. Uses the same GEMINI_API_KEY as above.
+    gemini_embedding_model: str = "gemini-embedding-001"
+
 
 settings = Settings()

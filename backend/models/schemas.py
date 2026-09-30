@@ -80,6 +80,7 @@ class MatchRecord(BaseModel):
     metadata_score: float = Field(ge=0, le=1)
     temporal_score: float = Field(ge=0, le=1)
     llm_score: float = Field(ge=0, le=1)
+    terminology_score: float = Field(ge=0, le=1)
     final_confidence: float = Field(ge=0, le=1)
     decision: MatchDecision
     reviewer: Optional[str] = None

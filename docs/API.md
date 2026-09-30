@@ -105,6 +105,7 @@ See `shared/types.ts` / `backend/models/schemas.py` for the authoritative defini
   "metadata_score": 0.95,
   "temporal_score": 0.90,
   "llm_score": 0.95,
+  "terminology_score": 0.80,
   "final_confidence": 0.94,
   "decision": "auto_match",
   "reviewer": null,
@@ -147,12 +148,22 @@ Runs LLM extraction on a given `source_document_id` (passed in body) into one or
 ### `GET /projects/{id}/events`
 List `ExecutionEvent`s for a project. Supports `?status=` filter.
 
-### `POST /events/{id}/match`
-Runs the 4-stage matching pipeline for one event. **Response:** `MatchResponse` (candidates sorted
-by `final_confidence` desc; UI shows top-3 minimum).
+### `POST /events/{id}/match` — implemented in Slice 4
+Runs the pipeline for one event: hard filter (discipline) → semantic retrieval (Gemini embeddings +
+pgvector cosine distance, cached per activity in `activity_embeddings`) → LLM reranking (Groq
+primary / Gemini fallback, same `LLMProvider` boundary as Slice 3) → deterministic scoring →
+weighted confidence. **Response:** `MatchResponse` (candidates sorted by `final_confidence` desc;
+UI shows top-3). A fresh call **replaces** the previous batch of candidates for that event — no
+match-run history is kept (see `docs/DECISIONS.md`). Returns an empty `candidates` list (200, not
+an error) if hard filtering leaves no same-discipline schedule activities. Error codes beyond the
+standard set: `EMBEDDINGS_PROVIDER_NOT_CONFIGURED` (503 — no `GEMINI_API_KEY`; matching needs Gemini
+specifically for embeddings even if Groq is used for reranking), `LLM_PROVIDER_NOT_CONFIGURED` (503
+— neither `GROQ_API_KEY` nor `GEMINI_API_KEY`), `EMBEDDINGS_FAILED` (502 — the embeddings call
+itself failed).
 
-### `GET /events/{id}/candidates`
-Re-fetch the last computed `MatchResponse` for an event without recomputing.
+### `GET /events/{id}/candidates` — implemented in Slice 4
+Re-fetches the last computed `MatchResponse` for an event without recomputing. `404 NOT_FOUND` if
+`POST /events/{id}/match` hasn't been called yet for this event.
 
 ### `POST /matches/{id}/approve`
 **Request:** `ReviewDecisionRequest` with `action: "approve"`. Applies the top candidate, updates
@@ -196,11 +207,38 @@ Single implementation lives in `shared/types.ts` (`decisionForConfidence`) and
 `backend/models/schemas.py` (`decision_for_confidence`) — do not reimplement this logic a third
 time anywhere else in the codebase.
 
+**Resolved contract gap (was flagged, now closed — see `docs/DECISIONS.md`):** the locked
+`MatchRecord` schema originally had no `terminology_score` field even though the formula above
+includes one. `terminology_score` was added to `MatchRecord` in both `backend/models/schemas.py`
+and `shared/types.ts` (Option B from the flagged-gap discussion) — it is now a real, first-class
+field on every match response, computed by `backend/services/matching_service.py` exactly per this
+formula, not just folded silently into `final_confidence`.
+
 ## Database Tables (minimum)
 
-`projects`, `schedule_activities`, `source_documents`, `execution_events`, `activity_matches`,
-`review_decisions`, `audit_logs`, `terminology`, `historical_activity_stats`.
-Optional: `activity_embeddings`, `contractors`, `delay_causes`.
+`projects`, `schedule_activities`, `source_documents`, `execution_events`, `activity_matches`
+(implemented, Slice 4), `review_decisions`, `audit_logs`, `terminology`, `historical_activity_stats`.
+`activity_embeddings` (was optional — now implemented, Slice 4, pgvector-backed).
+Still not implemented: `contractors`, `delay_causes`.
+
+### `POST /projects/{id}/extract` — implemented in Slice 3
+Was contracted from Slice 0 as a placeholder shape; implementation added in Slice 3, revised to its
+current provider architecture shortly after. **LLM provider: Groq is the primary provider; Gemini
+is the automatic fallback**, used only when Groq fails for an availability reason (rate limit,
+quota exhaustion, connection failure, temporary server error) — never merely because Groq's output
+looked wrong (see `backend/services/llm_provider.py`). No Anthropic dependency or code path exists
+anywhere in this project. Extraction currently only supports `.txt` and text-layer `.pdf` source
+documents — everything else (`.docx`, `.xlsx`, `.csv`, images) returns `422
+UNSUPPORTED_FOR_EXTRACTION`. Two extraction-specific error codes beyond the standard set:
+`LLM_PROVIDER_NOT_CONFIGURED` (503 — neither `GROQ_API_KEY` nor `GEMINI_API_KEY` is set) and
+`EXTRACTION_INCOMPLETE` (422 — neither provider could determine a required field;
+`details.missing_fields` lists which). `event_date` falls back to the source document's upload date
+when no explicit date is in the text (never invented by either LLM) — see `docs/DECISIONS.md` for
+the full reasoning.
+
+### `GET /projects/{id}/events` — implemented in Slice 3
+Also updated: `GET /projects/{id}/documents`'s `processable_now` field now reflects what extraction
+actually supports (`.txt`/`.pdf` only) rather than only excluding images — see `docs/DECISIONS.md`.
 
 ## Resolved (was "Open Items" pre-Slice-0)
 
@@ -214,3 +252,5 @@ Optional: `activity_embeddings`, `contractors`, `delay_causes`.
 - `POST /projects/{id}/memory/query` response shape (Phase 8).
 - Pagination shape for `GET /projects/{id}/events` and `GET /projects/{id}/audit-log` once dataset
   scale (~150 events, growing audit log) makes it necessary.
+- Content extraction for `.docx`/`.xlsx`/`.csv` source documents (Slice 3 only built `.txt`/`.pdf`).
+- OCR for image source documents (P2 per `plan.md`, still not built).

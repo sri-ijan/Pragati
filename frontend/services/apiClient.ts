@@ -95,3 +95,35 @@ export async function uploadDocument(
 export async function getDocuments(projectId: string): Promise<DocumentSummary[]> {
   return fetchJson<DocumentSummary[]>(`/projects/${projectId}/documents`);
 }
+
+// --- Slice 3: AI extraction ---
+
+import type { ExecutionEvent } from "@shared/types";
+
+export async function extractEvent(
+  projectId: string,
+  sourceDocumentId: string
+): Promise<{ events: ExecutionEvent[] }> {
+  return fetchJson<{ events: ExecutionEvent[] }>(`/projects/${projectId}/extract`, {
+    method: "POST",
+    body: JSON.stringify({ source_document_id: sourceDocumentId }),
+  });
+}
+
+export async function getEvents(projectId: string): Promise<ExecutionEvent[]> {
+  return fetchJson<ExecutionEvent[]>(`/projects/${projectId}/events`);
+}
+
+// --- Slice 4: matching ---
+
+import type { MatchRecord } from "@shared/types";
+
+export async function matchEvent(eventId: string): Promise<{ event_id: string; candidates: MatchRecord[] }> {
+  return fetchJson<{ event_id: string; candidates: MatchRecord[] }>(`/events/${eventId}/match`, {
+    method: "POST",
+  });
+}
+
+export async function getCandidates(eventId: string): Promise<{ event_id: string; candidates: MatchRecord[] }> {
+  return fetchJson<{ event_id: string; candidates: MatchRecord[] }>(`/events/${eventId}/candidates`);
+}
